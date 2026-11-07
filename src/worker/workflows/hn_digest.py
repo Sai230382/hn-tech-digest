@@ -254,35 +254,48 @@ def markdown_to_html(markdown: str) -> str:
 
 
 _ANIM_CSS = """
-:root { color-scheme: dark; }
+:root { color-scheme: dark; --ink:#0d0d0f; --paper:#f5f1e8; --red:#ff3b30; --yellow:#ffd23f; --blue:#4da3ff; --muted:#9aa0ad; }
 * { box-sizing: border-box; }
-body { margin: 0; font-family: 'Segoe UI', Arial, Helvetica, sans-serif; background: radial-gradient(1200px 600px at 20% -10%, #1b2a4a 0%, #0b0f1a 55%, #05070d 100%); color: #e8ecf4; min-height: 100vh; }
-#pwrap { position: fixed; top: 0; left: 0; right: 0; height: 4px; background: rgba(255,255,255,.08); z-index: 10; }
-#pbar { height: 100%; width: 0; background: linear-gradient(90deg, #4da3ff, #7c5cff); transition: width .2s linear; }
-header { text-align: center; padding: 40px 16px 12px; }
-.brand { font-size: 30px; letter-spacing: 5px; font-weight: 800; }
-.dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: #ff3b30; margin-right: 10px; animation: pulse 1.2s infinite; }
-@keyframes pulse { 50% { opacity: .25; } }
-.date { color: #9aa7bd; letter-spacing: 2px; font-size: 13px; margin-left: 12px; }
-.sub { color: #c7d2e4; margin-top: 8px; font-size: 15px; }
-main { padding: 10px 16px 140px; }
-.card { display: flex; gap: 14px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.09); border-radius: 14px; padding: 16px 18px; margin: 0 auto 14px; max-width: 880px; opacity: 0; transform: translateY(26px); animation: cardIn .7s cubic-bezier(.2,.7,.2,1) forwards; }
+body { margin: 0; background-color: var(--ink); color: var(--paper); font-family: 'Segoe UI', Arial, Helvetica, sans-serif; background-image: radial-gradient(rgba(255,255,255,.045) 1px, transparent 1px); background-size: 22px 22px; min-height: 100vh; }
+#pwrap { position: fixed; top: 0; left: 0; right: 0; height: 5px; background: rgba(255,255,255,.08); z-index: 20; }
+#pbar { height: 100%; width: 0; background: var(--red); transition: width .2s linear; }
+header { max-width: 920px; margin: 0 auto; padding: 26px 20px 6px; position: relative; }
+.topbar { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid var(--red); padding-bottom: 10px; }
+.logo { font-weight: 900; letter-spacing: 2px; font-size: 20px; }
+.logo em { color: var(--red); font-style: normal; }
+.clock { color: var(--muted); font-size: 13px; letter-spacing: 1px; font-variant-numeric: tabular-nums; }
+.masthead { font-family: Georgia, 'Times New Roman', serif; font-size: clamp(46px, 8vw, 86px); line-height: .95; letter-spacing: -2px; margin: 20px 0 8px; }
+.masthead .accent { color: var(--red); }
+.deck { color: var(--muted); font-size: 15px; }
+.sticker { position: absolute; right: 10px; top: 92px; background: var(--yellow); color: #141414; font-weight: 800; font-size: 12px; letter-spacing: 1px; padding: 8px 12px; border-radius: 6px; transform: rotate(4deg); box-shadow: 3px 3px 0 rgba(0,0,0,.55); }
+main { max-width: 920px; margin: 0 auto; padding: 20px 20px 150px; }
+.card { position: relative; display: flex; gap: 16px; background: #151519; border: 1px solid #26262c; border-left: 6px solid var(--red); border-radius: 10px; padding: 18px 20px 16px; margin-bottom: 16px; opacity: 0; transform: translateY(30px) rotate(.4deg); animation: cardIn .65s cubic-bezier(.2,.8,.25,1) forwards; }
 @keyframes cardIn { to { opacity: 1; transform: none; } }
-.card.active { border-color: #4da3ff; box-shadow: 0 0 0 1px #4da3ff, 0 10px 34px rgba(77,163,255,.28); background: rgba(77,163,255,.09); }
-.num { font-size: 28px; font-weight: 800; color: #4da3ff; min-width: 46px; }
-.ctitle { font-size: 20px; font-weight: 700; line-height: 1.3; }
-.cmeta { color: #9aa7bd; font-size: 13px; margin-top: 6px; }
-.cmeta a { color: #7fb4ff; }
-.controls { position: sticky; bottom: 58px; display: flex; justify-content: center; gap: 14px; align-items: center; padding: 12px; z-index: 5; }
-#playbtn { font-size: 16px; padding: 10px 24px; border-radius: 999px; border: none; background: #4da3ff; color: #04122b; font-weight: 700; cursor: pointer; }
-#time { color: #9aa7bd; font-size: 13px; font-variant-numeric: tabular-nums; }
-details.digest { max-width: 880px; margin: 20px auto; padding: 0 4px; color: #c7d2e4; }
-details.digest summary { cursor: pointer; color: #7fb4ff; font-weight: 600; }
-.digest-body { background: rgba(255,255,255,.04); border-radius: 12px; padding: 14px 18px; margin-top: 10px; }
+.card.active { border-left-color: var(--yellow); background: #1d1d24; box-shadow: 0 12px 40px rgba(255,210,63,.14); }
+.num { font-family: Georgia, 'Times New Roman', serif; font-size: 54px; font-weight: 700; color: #2c2c33; line-height: 1; }
+.card.active .num { color: var(--yellow); }
+.kicker { display: inline-block; font-size: 11px; font-weight: 800; letter-spacing: 2px; color: #0d0d0f; padding: 3px 9px; border-radius: 4px; margin-bottom: 8px; }
+.ctitle { font-family: Georgia, 'Times New Roman', serif; font-size: 24px; line-height: 1.15; font-weight: 700; }
+.card.active .ctitle { background: linear-gradient(transparent 55%, rgba(255,210,63,.85) 55%); }
+.cmeta { color: var(--muted); font-size: 13px; margin-top: 8px; }
+.cmeta a { color: var(--blue); }
+.controls { position: sticky; bottom: 52px; display: flex; justify-content: center; align-items: center; gap: 16px; padding: 10px; z-index: 15; }
+#playbtn { width: 64px; height: 64px; border-radius: 50%; border: none; background: var(--red); color: #fff; font-size: 22px; cursor: pointer; box-shadow: 0 8px 24px rgba(255,59,48,.4); transition: transform .15s; }
+#playbtn:hover { transform: scale(1.06); }
+.plabel { color: var(--muted); font-size: 13px; line-height: 1.45; }
+.plabel b { color: var(--paper); font-variant-numeric: tabular-nums; }
+details.digest { max-width: 920px; margin: 6px auto 30px; padding: 0 20px; }
+details.digest summary { color: var(--yellow); font-weight: 700; cursor: pointer; letter-spacing: 1px; }
+.digest-body { background: var(--paper); color: #161616; border-radius: 10px; padding: 18px 22px; margin-top: 12px; font-family: Georgia, 'Times New Roman', serif; }
+.digest-body a { color: #0b5bd3; }
+.digest-body h2 { font-size: 22px; }
 .digest-body p { line-height: 1.55; }
-.script { margin-top: 14px; color: #9aa7bd; font-size: 14px; line-height: 1.6; }
-.ticker { position: fixed; bottom: 0; left: 0; right: 0; overflow: hidden; background: rgba(0,0,0,.6); border-top: 1px solid rgba(255,255,255,.1); padding: 10px 0; z-index: 9; }
-.ticker-inner { display: inline-block; white-space: nowrap; animation: marquee 40s linear infinite; color: #9aa7bd; font-size: 13px; letter-spacing: 1px; }
+.script { max-width: 920px; margin: 0 auto 70px; padding: 0 20px; color: var(--muted); font-size: 14px; line-height: 1.7; }
+.made { max-width: 920px; margin: 0 auto; padding: 0 20px 90px; color: #5b6068; font-size: 12px; letter-spacing: 1px; }
+.ticker { position: fixed; bottom: 0; left: 0; right: 0; display: flex; align-items: stretch; background: #000; border-top: 3px solid var(--red); z-index: 18; }
+.ticklabel { background: var(--red); color: #fff; font-weight: 900; font-size: 12px; letter-spacing: 2px; padding: 12px 14px; display: flex; align-items: center; }
+.tickwrap { overflow: hidden; flex: 1; display: flex; align-items: center; }
+.ticker-inner { display: inline-block; white-space: nowrap; animation: marquee 45s linear infinite; color: #cfd3da; font-size: 13px; letter-spacing: 1px; padding: 10px 0; }
 @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 """
 
@@ -292,11 +305,14 @@ const cards = Array.from(document.querySelectorAll('.card'));
 const bar = document.getElementById('pbar');
 const btn = document.getElementById('playbtn');
 const timeEl = document.getElementById('time');
+const clockEl = document.getElementById('clock');
 let lastActive = -1;
 function fmt(t) { if (!isFinite(t)) return '0:00'; const m = Math.floor(t / 60), s = Math.floor(t % 60); return m + ':' + String(s).padStart(2, '0'); }
+function tickClock() { clockEl.textContent = new Date().toLocaleTimeString(); }
+tickClock(); setInterval(tickClock, 1000);
 btn.addEventListener('click', () => { if (audio.paused) { audio.play(); } else { audio.pause(); } });
-audio.addEventListener('play', () => { btn.textContent = '\\u275A\\u275A Pause'; });
-audio.addEventListener('pause', () => { btn.textContent = '\\u25B6 Play narration'; });
+audio.addEventListener('play', () => { btn.textContent = '\\u275A\\u275A'; });
+audio.addEventListener('pause', () => { btn.textContent = '\\u25B6'; });
 audio.addEventListener('loadedmetadata', () => {
   const d = audio.duration || 0;
   cards.forEach((c, i) => {
@@ -316,8 +332,34 @@ audio.addEventListener('timeupdate', () => {
   cards.forEach((c, i) => c.classList.toggle('active', i === active));
   if (active !== lastActive && active >= 0) { cards[active].scrollIntoView({ block: 'nearest', behavior: 'smooth' }); lastActive = active; }
 });
-audio.addEventListener('ended', () => { cards.forEach(c => c.classList.remove('active')); lastActive = -1; });
+audio.addEventListener('ended', () => { cards.forEach(c => c.classList.remove('active')); btn.textContent = '\\u25B6'; lastActive = -1; });
 """
+
+
+def kicker_for(story: Story) -> tuple[str, str]:
+    title = story.title.lower()
+    domain = (story.domain or "").lower()
+    tokens = set(title.split())
+
+    def kw(*words: str) -> bool:
+        return any(w in title for w in words)
+
+    def tok(*words: str) -> bool:
+        return any(w in tokens for w in words)
+
+    if kw("vulnerab", "exploit", "escape", "pwn", "hack", "breach", "malware", "classifier") or tok("cyber", "cybersecurity"):
+        return ("SECURITY", "#ff5c5c")
+    if kw("llm", "gpt", "gemini", "claude", "opus", "anthropic", "openai", "model", "agent", "copilot") or tok("ai", "ai-driven") or domain in {"anthropic.com", "openai.com"}:
+        return ("AI", "#8b7bff")
+    if kw("acqui", "funding", "raises", "raise", "startup", "ipo", "valuation", "venture", "billion", "million"):
+        return ("BUSINESS", "#ffb020")
+    if kw("chip", "gpu", "silicon", "hardware", "semiconductor", "cpu") or tok("mac", "macs"):
+        return ("HARDWARE", "#3fd0c9")
+    if kw("github", "git ", "linux", "kernel", "postgres", "database", "storage", "compiler", "vm", "sdk", "uefi") or tok("dev"):
+        return ("DEV & INFRA", "#5cb85c")
+    if kw("google", "microsoft", "apple", "meta", "amazon", "tesla", "nvidia", "faa"):
+        return ("BIG TECH", "#ff7a59")
+    return ("TECH", "#4da3ff")
 
 
 def build_animated_html(
@@ -330,38 +372,46 @@ def build_animated_html(
 ) -> str:
     cards_html = []
     for i, s in enumerate(stories):
+        label, color = kicker_for(s)
         title = html.escape(s.title)
         dom = html.escape(s.domain or "news.ycombinator.com")
         hn = html.escape(s.hn_url, quote=True)
         src_link = f' &middot; <a href="{html.escape(s.url, quote=True)}">source</a>' if s.url else ""
         cards_html.append(
-            f'<div class="card" id="card-{i}" style="animation-delay:{i * 5.0:.1f}s">'
+            f'<div class="card" id="card-{i}" style="animation-delay:{i * 4.5:.1f}s">'
             f'<div class="num">{i + 1}</div>'
-            f'<div class="cbody"><div class="ctitle">{title}</div>'
+            f'<div class="cbody"><span class="kicker" style="background:{color}">{label}</span>'
+            f'<div class="ctitle">{title}</div>'
             f'<div class="cmeta">{dom} &middot; {s.points} pts &middot; {s.num_comments} comments &middot; '
             f'<a href="{hn}">HN discussion</a>{src_link}</div></div></div>'
         )
     ticker = " &nbsp;&#8226;&nbsp; ".join(html.escape(s.domain or "news.ycombinator.com") for s in stories)
     ticker = ticker + " &nbsp;&#8226;&nbsp; " + ticker
     digest_body = markdown_to_html(markdown).removeprefix("<html><body>").removesuffix("</body></html>")
+    n = len(stories)
     return (
         "<!DOCTYPE html><html><head><meta charset=\"utf-8\">"
         "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
         f"<title>{html.escape(subject)}</title><style>{_ANIM_CSS}</style></head><body>"
         "<div id=\"pwrap\"><div id=\"pbar\"></div></div>"
-        f"<header><div class=\"brand\"><span class=\"dot\"></span>HN TECH DIGEST"
-        f"<span class=\"date\">{html.escape(date_str)}</span></div>"
-        f"<div class=\"sub\">{html.escape(subject)}</div></header>"
+        "<header><div class=\"topbar\"><span class=\"logo\">HN<em>&#9679;</em>WIRE</span>"
+        "<span class=\"clock\" id=\"clock\">--:--:--</span></div>"
+        "<h1 class=\"masthead\">Tech <span class=\"accent\">Digest</span></h1>"
+        f"<div class=\"deck\">{html.escape(subject)} &middot; {html.escape(date_str)} &middot; {n} stories &middot; press play for the narration</div>"
+        f"<div class=\"sticker\">TOP {n} TODAY</div></header>"
         "<main>" + "".join(cards_html) + "</main>"
-        "<div class=\"controls\"><button id=\"playbtn\">&#9654; Play narration</button>"
-        "<span id=\"time\">0:00 / 0:00</span></div>"
+        "<div class=\"controls\"><button id=\"playbtn\" title=\"Play narration\">&#9654;</button>"
+        "<div class=\"plabel\"><b id=\"time\">0:00 / 0:00</b><br>narration &middot; voxtral voice</div></div>"
         f"<audio id=\"narration\" preload=\"auto\" src=\"data:audio/mpeg;base64,{audio_b64}\"></audio>"
-        "<details class=\"digest\"><summary>Full digest text &amp; transcript</summary>"
-        f"<div class=\"digest-body\">{digest_body}</div>"
-        f"<div class=\"script\"><strong>Narration transcript</strong><br>{html.escape(script)}</div></details>"
-        f"<footer class=\"ticker\"><div class=\"ticker-inner\">{ticker}</div></footer>"
+        "<details class=\"digest\"><summary>FULL DIGEST &amp; TRANSCRIPT</summary>"
+        f"<div class=\"digest-body\">{digest_body}</div></details>"
+        f"<div class=\"script\"><strong>Narration transcript</strong><br>{html.escape(script)}</div>"
+        "<div class=\"made\">MADE BY HN-TECH-DIGEST &middot; ALL LINKS GO TO THE ORIGINAL SOURCES</div>"
+        "<footer class=\"ticker\"><span class=\"ticklabel\">LATEST</span>"
+        f"<div class=\"tickwrap\"><div class=\"ticker-inner\">{ticker}</div></div></footer>"
         f"<script>{_ANIM_JS}</script></body></html>"
     )
+
 
 
 def build_email_payload(

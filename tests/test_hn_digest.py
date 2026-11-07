@@ -19,6 +19,7 @@ from worker.workflows.hn_digest import (
     clamp_script,
     extract_json,
     filter_candidates,
+    kicker_for,
     markdown_to_html,
     parse_front_page,
 )
@@ -136,10 +137,25 @@ def test_build_email_payload_shape():
     assert len(payload_audio_only["attachments"]) == 1
 
 
+def test_kicker_for_categories():
+    def story(title, domain="example.com"):
+        return Story(id=1, title=title, hn_url="https://news.ycombinator.com/item?id=1", domain=domain)
+
+    assert kicker_for(story("Gemini 5 LLM released"))[0] == "AI"
+    assert kicker_for(story("New Firecracker VM escape exploit"))[0] == "SECURITY"
+    assert kicker_for(story("Startup raises $500M round"))[0] == "BUSINESS"
+    assert kicker_for(story("GitHub unveils new storage backend"))[0] == "DEV & INFRA"
+    assert kicker_for(story("Tesla robotaxi delayed"))[0] == "BIG TECH"
+    assert kicker_for(story("Tesla to wind down Cybertruck production"))[0] == "BIG TECH"
+    assert kicker_for(story("New cyber-attack campaign spotted"))[0] == "SECURITY"
+    assert kicker_for(story("RISC-V board ships"))[0] == "TECH"
+    assert kicker_for(story("Anthropic publishes research", "anthropic.com"))[0] == "AI"
+
+
 def test_build_animated_html_is_self_contained_and_escaped():
     audio_b64 = base64.b64encode(b"mp3bytes").decode()
     stories = [
-        Story(id=1, title="<script>alert(1)</script> Big AI news", hn_url="https://news.ycombinator.com/item?id=1", url="https://example.com/a", domain="example.com", points=10, num_comments=2),
+        Story(id=1, title="<script>alert(1)</script> Gemini LLM news", hn_url="https://news.ycombinator.com/item?id=1", url="https://example.com/a", domain="example.com", points=10, num_comments=2),
         Story(id=2, title="Chips", hn_url="https://news.ycombinator.com/item?id=2", domain="vendor.io", points=5, num_comments=1),
     ]
     page = build_animated_html("HN Tech Digest - 2026-11-07", "# Digest", "Here is your digest.", stories, audio_b64, "2026-11-07")
@@ -148,9 +164,10 @@ def test_build_animated_html_is_self_contained_and_escaped():
     assert 'id="card-0"' in page and 'id="card-1"' in page
     assert "&lt;script&gt;alert(1)&lt;/script&gt;" in page
     assert "<script>alert" not in page
-    assert 'id="narration"' in page and 'id="playbtn"' in page and 'id="pbar"' in page
+    assert 'id="narration"' in page and 'id="playbtn"' in page and 'id="pbar"' in page and 'id="clock"' in page
     assert 'src="http' not in page and "<link" not in page
-    assert "HN TECH DIGEST" in page and "2026-11-07" in page
+    assert 'class="masthead"' in page and "TOP 2 TODAY" in page and "2026-11-07" in page
+    assert 'class="kicker"' in page and ">AI<" in page
     assert "Here is your digest." in page
 
 
