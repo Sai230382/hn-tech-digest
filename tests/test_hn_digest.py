@@ -13,6 +13,7 @@ from worker.workflows.hn_digest import (
     HNDigestWorkflow,
     Story,
     apply_selection,
+    build_animated_html,
     build_email_payload,
     build_selection_prompt,
     clamp_script,
@@ -117,12 +118,40 @@ def test_markdown_to_html_escapes_and_links():
 
 def test_build_email_payload_shape():
     audio_b64 = base64.b64encode(b"fake-mp3-bytes").decode()
-    payload = build_email_payload("me@example.com", "Subject", "# Hi", audio_b64, "digest.mp3")
+    html_b64 = base64.b64encode(b"<html>animated</html>").decode()
+    payload = build_email_payload(
+        "me@example.com", "Subject", "# Hi", audio_b64, "digest.mp3", html_b64, "digest.html"
+    )
     assert payload["to"] == ["me@example.com"]
     assert payload["subject"] == "Subject"
+    assert len(payload["attachments"]) == 2
     assert payload["attachments"][0]["mimeType"] == "audio/mpeg"
     assert payload["attachments"][0]["filename"] == "digest.mp3"
     assert base64.b64decode(payload["attachments"][0]["content"], validate=True) == b"fake-mp3-bytes"
+    assert payload["attachments"][1]["mimeType"] == "text/html"
+    assert payload["attachments"][1]["filename"] == "digest.html"
+    assert base64.b64decode(payload["attachments"][1]["content"], validate=True) == b"<html>animated</html>"
+
+    payload_audio_only = build_email_payload("me@example.com", "S", "b", audio_b64, "a.mp3")
+    assert len(payload_audio_only["attachments"]) == 1
+
+
+def test_build_animated_html_is_self_contained_and_escaped():
+    audio_b64 = base64.b64encode(b"mp3bytes").decode()
+    stories = [
+        Story(id=1, title="<script>alert(1)</script> Big AI news", hn_url="https://news.ycombinator.com/item?id=1", url="https://example.com/a", domain="example.com", points=10, num_comments=2),
+        Story(id=2, title="Chips", hn_url="https://news.ycombinator.com/item?id=2", domain="vendor.io", points=5, num_comments=1),
+    ]
+    page = build_animated_html("HN Tech Digest - 2026-11-07", "# Digest", "Here is your digest.", stories, audio_b64, "2026-11-07")
+    assert f"data:audio/mpeg;base64,{audio_b64}" in page
+    assert page.count('class="card"') == 2
+    assert 'id="card-0"' in page and 'id="card-1"' in page
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in page
+    assert "<script>alert" not in page
+    assert 'id="narration"' in page and 'id="playbtn"' in page and 'id="pbar"' in page
+    assert 'src="http' not in page and "<link" not in page
+    assert "HN TECH DIGEST" in page and "2026-11-07" in page
+    assert "Here is your digest." in page
 
 
 def _fake_client_with_chat(content: str):
@@ -222,12 +251,14 @@ async def test_workflow_end_to_end_with_mocked_activities(temporal_env_with_conv
         }
 
     @workflows.activity(name="hn-render-audio-and-email")
-    async def fake_render(to: str, digest: dict, voice_id: str, date_str: str) -> dict:
-        calls["render"] = {"to": to, "voice_id": voice_id, "subject": digest["subject"]}
+    async def fake_render(to: str, digest: dict, stories: list[Story], voice_id: str, date_str: str) -> dict:
+        calls["render"] = {"to": to, "voice_id": voice_id, "subject": digest["subject"], "stories": len(stories)}
         return {
             "sent_message_id": "msg-1",
             "audio_filename": f"hn-tech-digest-{date_str}.mp3",
             "audio_bytes": 12345,
+            "html_filename": f"hn-tech-digest-{date_str}.html",
+            "html_bytes": 6789,
         }
 
     env = temporal_env_with_converter
@@ -254,3 +285,6 @@ async def test_workflow_end_to_end_with_mocked_activities(temporal_env_with_conv
     assert calls["select"] == (1, 12)
     assert calls["render"]["to"] == "me@example.com"
     assert calls["render"]["voice_id"] == "voice_478"
+    assert calls["render"]["stories"] == 1
+    assert result.html_filename is not None and result.html_filename.endswith(".html")
+    assert result.html_bytes == 6789

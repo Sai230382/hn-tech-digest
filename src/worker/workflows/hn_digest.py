@@ -75,6 +75,8 @@ class DigestOutput(pydantic.BaseModel):
     script: str
     audio_filename: str
     audio_bytes: int
+    html_filename: str | None = None
+    html_bytes: int | None = None
     stories: list[Story]
     sent_message_id: str | None = None
 
@@ -251,19 +253,137 @@ def markdown_to_html(markdown: str) -> str:
     return "<html><body>" + "".join(out) + "</body></html>"
 
 
-def build_email_payload(to: str, subject: str, markdown: str, audio_b64: str, filename: str) -> dict[str, Any]:
+_ANIM_CSS = """
+:root { color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; font-family: 'Segoe UI', Arial, Helvetica, sans-serif; background: radial-gradient(1200px 600px at 20% -10%, #1b2a4a 0%, #0b0f1a 55%, #05070d 100%); color: #e8ecf4; min-height: 100vh; }
+#pwrap { position: fixed; top: 0; left: 0; right: 0; height: 4px; background: rgba(255,255,255,.08); z-index: 10; }
+#pbar { height: 100%; width: 0; background: linear-gradient(90deg, #4da3ff, #7c5cff); transition: width .2s linear; }
+header { text-align: center; padding: 40px 16px 12px; }
+.brand { font-size: 30px; letter-spacing: 5px; font-weight: 800; }
+.dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: #ff3b30; margin-right: 10px; animation: pulse 1.2s infinite; }
+@keyframes pulse { 50% { opacity: .25; } }
+.date { color: #9aa7bd; letter-spacing: 2px; font-size: 13px; margin-left: 12px; }
+.sub { color: #c7d2e4; margin-top: 8px; font-size: 15px; }
+main { padding: 10px 16px 140px; }
+.card { display: flex; gap: 14px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.09); border-radius: 14px; padding: 16px 18px; margin: 0 auto 14px; max-width: 880px; opacity: 0; transform: translateY(26px); animation: cardIn .7s cubic-bezier(.2,.7,.2,1) forwards; }
+@keyframes cardIn { to { opacity: 1; transform: none; } }
+.card.active { border-color: #4da3ff; box-shadow: 0 0 0 1px #4da3ff, 0 10px 34px rgba(77,163,255,.28); background: rgba(77,163,255,.09); }
+.num { font-size: 28px; font-weight: 800; color: #4da3ff; min-width: 46px; }
+.ctitle { font-size: 20px; font-weight: 700; line-height: 1.3; }
+.cmeta { color: #9aa7bd; font-size: 13px; margin-top: 6px; }
+.cmeta a { color: #7fb4ff; }
+.controls { position: sticky; bottom: 58px; display: flex; justify-content: center; gap: 14px; align-items: center; padding: 12px; z-index: 5; }
+#playbtn { font-size: 16px; padding: 10px 24px; border-radius: 999px; border: none; background: #4da3ff; color: #04122b; font-weight: 700; cursor: pointer; }
+#time { color: #9aa7bd; font-size: 13px; font-variant-numeric: tabular-nums; }
+details.digest { max-width: 880px; margin: 20px auto; padding: 0 4px; color: #c7d2e4; }
+details.digest summary { cursor: pointer; color: #7fb4ff; font-weight: 600; }
+.digest-body { background: rgba(255,255,255,.04); border-radius: 12px; padding: 14px 18px; margin-top: 10px; }
+.digest-body p { line-height: 1.55; }
+.script { margin-top: 14px; color: #9aa7bd; font-size: 14px; line-height: 1.6; }
+.ticker { position: fixed; bottom: 0; left: 0; right: 0; overflow: hidden; background: rgba(0,0,0,.6); border-top: 1px solid rgba(255,255,255,.1); padding: 10px 0; z-index: 9; }
+.ticker-inner { display: inline-block; white-space: nowrap; animation: marquee 40s linear infinite; color: #9aa7bd; font-size: 13px; letter-spacing: 1px; }
+@keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+"""
+
+_ANIM_JS = """
+const audio = document.getElementById('narration');
+const cards = Array.from(document.querySelectorAll('.card'));
+const bar = document.getElementById('pbar');
+const btn = document.getElementById('playbtn');
+const timeEl = document.getElementById('time');
+let lastActive = -1;
+function fmt(t) { if (!isFinite(t)) return '0:00'; const m = Math.floor(t / 60), s = Math.floor(t % 60); return m + ':' + String(s).padStart(2, '0'); }
+btn.addEventListener('click', () => { if (audio.paused) { audio.play(); } else { audio.pause(); } });
+audio.addEventListener('play', () => { btn.textContent = '\\u275A\\u275A Pause'; });
+audio.addEventListener('pause', () => { btn.textContent = '\\u25B6 Play narration'; });
+audio.addEventListener('loadedmetadata', () => {
+  const d = audio.duration || 0;
+  cards.forEach((c, i) => {
+    c.dataset.start = (i * d / cards.length).toString();
+    c.dataset.end = ((i + 1) * d / cards.length).toString();
+  });
+});
+audio.addEventListener('timeupdate', () => {
+  const t = audio.currentTime, d = audio.duration || 0;
+  bar.style.width = (d ? (t / d) * 100 : 0) + '%';
+  timeEl.textContent = fmt(t) + ' / ' + fmt(d);
+  let active = -1;
+  cards.forEach((c, i) => {
+    const s = parseFloat(c.dataset.start || '0'), e = parseFloat(c.dataset.end || '0');
+    if (t >= s && t < e) { active = i; }
+  });
+  cards.forEach((c, i) => c.classList.toggle('active', i === active));
+  if (active !== lastActive && active >= 0) { cards[active].scrollIntoView({ block: 'nearest', behavior: 'smooth' }); lastActive = active; }
+});
+audio.addEventListener('ended', () => { cards.forEach(c => c.classList.remove('active')); lastActive = -1; });
+"""
+
+
+def build_animated_html(
+    subject: str,
+    markdown: str,
+    script: str,
+    stories: list[Story],
+    audio_b64: str,
+    date_str: str,
+) -> str:
+    cards_html = []
+    for i, s in enumerate(stories):
+        title = html.escape(s.title)
+        dom = html.escape(s.domain or "news.ycombinator.com")
+        hn = html.escape(s.hn_url, quote=True)
+        src_link = f' &middot; <a href="{html.escape(s.url, quote=True)}">source</a>' if s.url else ""
+        cards_html.append(
+            f'<div class="card" id="card-{i}" style="animation-delay:{i * 5.0:.1f}s">'
+            f'<div class="num">{i + 1}</div>'
+            f'<div class="cbody"><div class="ctitle">{title}</div>'
+            f'<div class="cmeta">{dom} &middot; {s.points} pts &middot; {s.num_comments} comments &middot; '
+            f'<a href="{hn}">HN discussion</a>{src_link}</div></div></div>'
+        )
+    ticker = " &nbsp;&#8226;&nbsp; ".join(html.escape(s.domain or "news.ycombinator.com") for s in stories)
+    ticker = ticker + " &nbsp;&#8226;&nbsp; " + ticker
+    digest_body = markdown_to_html(markdown).removeprefix("<html><body>").removesuffix("</body></html>")
+    return (
+        "<!DOCTYPE html><html><head><meta charset=\"utf-8\">"
+        "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
+        f"<title>{html.escape(subject)}</title><style>{_ANIM_CSS}</style></head><body>"
+        "<div id=\"pwrap\"><div id=\"pbar\"></div></div>"
+        f"<header><div class=\"brand\"><span class=\"dot\"></span>HN TECH DIGEST"
+        f"<span class=\"date\">{html.escape(date_str)}</span></div>"
+        f"<div class=\"sub\">{html.escape(subject)}</div></header>"
+        "<main>" + "".join(cards_html) + "</main>"
+        "<div class=\"controls\"><button id=\"playbtn\">&#9654; Play narration</button>"
+        "<span id=\"time\">0:00 / 0:00</span></div>"
+        f"<audio id=\"narration\" preload=\"auto\" src=\"data:audio/mpeg;base64,{audio_b64}\"></audio>"
+        "<details class=\"digest\"><summary>Full digest text &amp; transcript</summary>"
+        f"<div class=\"digest-body\">{digest_body}</div>"
+        f"<div class=\"script\"><strong>Narration transcript</strong><br>{html.escape(script)}</div></details>"
+        f"<footer class=\"ticker\"><div class=\"ticker-inner\">{ticker}</div></footer>"
+        f"<script>{_ANIM_JS}</script></body></html>"
+    )
+
+
+def build_email_payload(
+    to: str,
+    subject: str,
+    markdown: str,
+    audio_b64: str,
+    audio_filename: str,
+    html_b64: str | None = None,
+    html_filename: str | None = None,
+) -> dict[str, Any]:
+    attachments: list[dict[str, Any]] = [
+        {"content": audio_b64, "filename": audio_filename, "mimeType": "audio/mpeg"}
+    ]
+    if html_b64 is not None and html_filename is not None:
+        attachments.append({"content": html_b64, "filename": html_filename, "mimeType": "text/html"})
     return {
         "to": [to],
         "subject": subject,
         "body": markdown,
         "htmlBody": markdown_to_html(markdown),
-        "attachments": [
-            {
-                "content": audio_b64,
-                "filename": filename,
-                "mimeType": "audio/mpeg",
-            }
-        ],
+        "attachments": attachments,
     }
 
 
@@ -339,16 +459,31 @@ async def build_digest(stories: list[Story], date_str: str) -> dict[str, Any]:
 async def render_audio_and_email(
     to: str,
     digest: dict[str, Any],
+    stories: list[Story],
     voice_id: str,
     date_str: str,
     gmail: ToolCallClient = Depends(gmail_connector),
 ) -> dict[str, Any]:
     audio_b64 = await tts_mp3_b64(digest["script"], voice_id)
     audio_bytes = len(base64.b64decode(audio_b64))
-    filename = f"hn-tech-digest-{date_str}.mp3"
-    payload = build_email_payload(to, digest["subject"], digest["markdown"], audio_b64, filename)
+    audio_filename = f"hn-tech-digest-{date_str}.mp3"
+    subject = str(digest.get("subject", f"HN Tech Digest - {date_str}"))
+    animated = build_animated_html(
+        subject, str(digest.get("markdown", "")), str(digest.get("script", "")), stories, audio_b64, date_str
+    )
+    html_filename = f"hn-tech-digest-{date_str}.html"
+    html_b64 = base64.b64encode(animated.encode("utf-8")).decode("ascii")
+    payload = build_email_payload(
+        to, subject, str(digest["markdown"]), audio_b64, audio_filename, html_b64, html_filename
+    )
     message_id = await gmail_send(payload, gmail)
-    return {"sent_message_id": message_id, "audio_filename": filename, "audio_bytes": audio_bytes}
+    return {
+        "sent_message_id": message_id,
+        "audio_filename": audio_filename,
+        "audio_bytes": audio_bytes,
+        "html_filename": html_filename,
+        "html_bytes": len(animated.encode("utf-8")),
+    }
 
 
 @workflows.workflow.define(
@@ -356,8 +491,9 @@ async def render_audio_and_email(
     workflow_display_name="HN Tech Digest",
     workflow_description=(
         "One-shot digest: reads the Hacker News front page, selects the top tech-industry stories, "
-        "summarizes them, renders a 1-2 minute Voxtral TTS audio briefing, and emails the digest "
-        "with the MP3 attached to your Gmail inbox. Runs on behalf of the triggering user."
+        "summarizes them, renders a 1-2 minute Voxtral TTS audio briefing plus an animated HTML "
+        "news-style video page synced to the narration, and emails the digest with the MP3 and HTML "
+        "attached to your Gmail inbox. Runs on behalf of the triggering user."
     ),
     on_behalf_of=True,
 )
@@ -369,13 +505,15 @@ class HNDigestWorkflow:
         stories = await fetch_front_page()
         selected = await select_tech_stories(stories, input.story_count)
         digest = await build_digest(selected, date_str)
-        sent = await render_audio_and_email(input.to, digest, input.voice_id, date_str)
+        sent = await render_audio_and_email(input.to, digest, selected, input.voice_id, date_str)
         return DigestOutput(
             subject=str(digest.get("subject", f"HN Tech Digest - {date_str}")),
             markdown=str(digest.get("markdown", "")),
             script=str(digest.get("script", "")),
             audio_filename=sent["audio_filename"],
             audio_bytes=sent["audio_bytes"],
+            html_filename=sent["html_filename"],
+            html_bytes=sent["html_bytes"],
             stories=selected,
             sent_message_id=sent["sent_message_id"],
         )
