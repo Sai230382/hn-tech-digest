@@ -347,7 +347,7 @@ def kicker_for(story: Story) -> tuple[str, str]:
     def tok(*words: str) -> bool:
         return any(w in tokens for w in words)
 
-    if kw("vulnerab", "exploit", "escape", "pwn", "hack", "breach", "malware", "classifier") or tok("cyber", "cybersecurity"):
+    if kw("vulnerab", "exploit", "escape", "pwn", "hack", "breach", "malware", "classifier", "cyber") and "cybertruck" not in title:
         return ("SECURITY", "#ff5c5c")
     if kw("llm", "gpt", "gemini", "claude", "opus", "anthropic", "openai", "model", "agent", "copilot") or tok("ai", "ai-driven") or domain in {"anthropic.com", "openai.com"}:
         return ("AI", "#8b7bff")
