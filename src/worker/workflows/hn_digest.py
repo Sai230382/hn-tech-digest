@@ -512,7 +512,7 @@ async def fetch_front_page(source: str = "front_page") -> list[Story]:
     return parse_front_page(payload)
 
 
-@workflows.activity(name="hn-select-tech-stories", start_to_close_timeout=timedelta(seconds=180))
+@workflows.activity(name="hn-select-tech-stories", start_to_close_timeout=timedelta(minutes=10))
 async def select_tech_stories(stories: list[Story], count: int) -> list[Story]:
     candidates = filter_candidates(stories)
     system, user = build_selection_prompt(candidates, count)
@@ -539,7 +539,7 @@ def fallback_digest(stories: list[Story], date_str: str) -> dict[str, Any]:
     return {"subject": f"HN Tech Digest - {date_str}", "markdown": markdown, "script": clamp_script(script)}
 
 
-@workflows.activity(name="hn-build-digest", start_to_close_timeout=timedelta(seconds=180))
+@workflows.activity(name="hn-build-digest", start_to_close_timeout=timedelta(minutes=10))
 async def build_digest(stories: list[Story], date_str: str) -> dict[str, Any]:
     system, user = build_digest_prompt(stories, date_str)
     try:
