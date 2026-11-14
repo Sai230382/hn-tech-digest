@@ -67,7 +67,7 @@ def test_parse_front_page():
     stories = parse_front_page(SAMPLE_ALGOLIA)
     assert [s.id for s in stories] == [111, 222, 333, 444]
     assert stories[0].domain == "openai.com"
-    assert stories[2].url is None and stories[2].domain is None
+    assert stories[2].url == "https://mistral.ai/news/pixtral-2" and stories[2].domain == "mistral.ai"
     assert stories[2].hn_url == "https://news.ycombinator.com/item?id=333"
 
 
