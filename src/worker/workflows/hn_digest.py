@@ -463,21 +463,27 @@ async def hn_get_json(url: str) -> Any:
         return response.json()
 
 
-async def llm_chat_json(system: str, user: str) -> dict[str, Any]:
-    client = _mistral_client()
-    response = await client.chat.complete_async(
-        model=CHAT_MODEL,
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
-        response_format={"type": "json_object"},
-        temperature=0.2,
-    )
-    content = response.choices[0].message.content
-    if isinstance(content, list):
-        content = "".join(part.get("text", "") for part in content if isinstance(part, dict))
-    return extract_json(content)
+async def llm_chat_json(system: str, user: str, retries: int = 2) -> dict[str, Any]:
+    last_error: Exception | None = None
+    for _ in range(retries + 1):
+        try:
+            client = _mistral_client()
+            response = await client.chat.complete_async(
+                model=CHAT_MODEL,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user},
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.2,
+            )
+            content = response.choices[0].message.content
+            if isinstance(content, list):
+                content = "".join(part.get("text", "") for part in content if isinstance(part, dict))
+            return extract_json(content)
+        except ValueError as exc:
+            last_error = exc
+    raise last_error  # type: ignore[misc]
 
 
 async def tts_mp3_b64(script: str, voice_id: str) -> str:
@@ -510,14 +516,36 @@ async def fetch_front_page(source: str = "front_page") -> list[Story]:
 async def select_tech_stories(stories: list[Story], count: int) -> list[Story]:
     candidates = filter_candidates(stories)
     system, user = build_selection_prompt(candidates, count)
-    raw = await llm_chat_json(system, user)
+    try:
+        raw = await llm_chat_json(system, user)
+    except Exception:
+        raw = {"selected_ids": []}  # apply_selection falls back to top-N by engagement
     return apply_selection(raw, candidates, count)
+
+
+def fallback_digest(stories: list[Story], date_str: str) -> dict[str, Any]:
+    lines = [
+        f"{i}. **{s.title}** — [source]({s.url or s.hn_url}) · [HN discussion]({s.hn_url}) ({s.points} pts, {s.num_comments} comments)"
+        for i, s in enumerate(stories, 1)
+    ]
+    markdown = (
+        f"# HN Tech Digest - {date_str}\n\n" + "\n".join(lines) + "\n\nAudio briefing attached (MP3, about 1-2 minutes).\n"
+    )
+    script = (
+        f"Here is your Hacker News tech digest for {date_str}. "
+        + " ".join(f"{s.title}." for s in stories)
+        + " That's all for today. See you tomorrow."
+    )
+    return {"subject": f"HN Tech Digest - {date_str}", "markdown": markdown, "script": clamp_script(script)}
 
 
 @workflows.activity(name="hn-build-digest", start_to_close_timeout=timedelta(seconds=180))
 async def build_digest(stories: list[Story], date_str: str) -> dict[str, Any]:
     system, user = build_digest_prompt(stories, date_str)
-    digest = await llm_chat_json(system, user)
+    try:
+        digest = await llm_chat_json(system, user)
+    except Exception:
+        digest = fallback_digest(stories, date_str)
     digest["script"] = clamp_script(str(digest.get("script", "")))
     return digest
 

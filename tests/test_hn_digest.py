@@ -18,6 +18,7 @@ from worker.workflows.hn_digest import (
     build_selection_prompt,
     clamp_script,
     extract_json,
+    fallback_digest,
     filter_candidates,
     hn_source_url,
     kicker_for,
@@ -136,6 +137,35 @@ def test_build_email_payload_shape():
 
     payload_audio_only = build_email_payload("me@example.com", "S", "b", audio_b64, "a.mp3")
     assert len(payload_audio_only["attachments"]) == 1
+
+
+def test_extract_json_tolerates_fences_and_noise():
+    assert extract_json('```json\n{"a": 1}\n```') == {"a": 1}
+    assert extract_json('noise {"b": [1, 2]} trailing') == {"b": [1, 2]}
+    with pytest.raises(ValueError):
+        extract_json("}")
+
+
+def test_fallback_digest_shape():
+    stories = [
+        Story(id=1, title="Nvidia unveils chip", url="https://nvidia.com/x", domain="nvidia.com", hn_url="https://news.ycombinator.com/item?id=1", points=100, num_comments=10),
+        Story(id=2, title="Second story", hn_url="https://news.ycombinator.com/item?id=2", points=5, num_comments=1),
+    ]
+    d = fallback_digest(stories, "2026-11-14")
+    assert d["subject"] == "HN Tech Digest - 2026-11-14"
+    assert "Nvidia unveils chip" in d["markdown"] and "news.ycombinator.com/item?id=1" in d["markdown"]
+    assert "Nvidia unveils chip." in d["script"]
+    assert len(d["script"].split()) <= 320
+
+
+def test_apply_selection_empty_falls_back_to_top_engagement():
+    stories = [
+        Story(id=1, title="a", hn_url="https://news.ycombinator.com/item?id=1", points=10, num_comments=0),
+        Story(id=2, title="b", hn_url="https://news.ycombinator.com/item?id=2", points=100, num_comments=50),
+        Story(id=3, title="c", hn_url="https://news.ycombinator.com/item?id=3", points=5, num_comments=0),
+    ]
+    selected = apply_selection({"selected_ids": []}, stories, 2)
+    assert [s.id for s in selected] == [2, 1]
 
 
 def test_hn_source_url_mapping():
