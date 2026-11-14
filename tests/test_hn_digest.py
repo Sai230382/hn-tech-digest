@@ -45,8 +45,8 @@ SAMPLE_ALGOLIA = {
         },
         {
             "objectID": "333",
-            "title": "Ask HN: Best self-hosted LLM setup?",
-            "url": None,
+            "title": "Mistral releases Pixtral 2 open vision model",
+            "url": "https://mistral.ai/news/pixtral-2",
             "author": "bob",
             "points": 30,
             "num_comments": 5,
