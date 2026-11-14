@@ -19,6 +19,7 @@ from worker.workflows.hn_digest import (
     clamp_script,
     extract_json,
     filter_candidates,
+    hn_source_url,
     kicker_for,
     markdown_to_html,
     parse_front_page,
@@ -137,6 +138,25 @@ def test_build_email_payload_shape():
     assert len(payload_audio_only["attachments"]) == 1
 
 
+def test_hn_source_url_mapping():
+    assert "tags=front_page" in hn_source_url("front_page")
+    assert "search_by_date" in hn_source_url("latest")
+    assert "tags=story" in hn_source_url("best")
+    with pytest.raises(ValueError):
+        hn_source_url("nope")
+
+
+def test_filter_candidates_drops_non_news_titles():
+    stories = [
+        Story(id=1, title="Ask HN: what laptop should I buy?", hn_url="https://news.ycombinator.com/item?id=1", points=50, num_comments=90),
+        Story(id=2, title="Tell HN: I quit my job", hn_url="https://news.ycombinator.com/item?id=2", points=30, num_comments=40),
+        Story(id=3, title="Show HN: I built a terminal in Rust", hn_url="https://news.ycombinator.com/item?id=3", points=120, num_comments=60),
+        Story(id=4, title="Nvidia unveils new Blackwell Ultra chip", url="https://nvidia.com/news", domain="nvidia.com", hn_url="https://news.ycombinator.com/item?id=4", points=400, num_comments=150),
+    ]
+    kept = filter_candidates(stories)
+    assert [s.id for s in kept] == [3, 4]
+
+
 def test_kicker_for_categories():
     def story(title, domain="example.com"):
         return Story(id=1, title=title, hn_url="https://news.ycombinator.com/item?id=1", domain=domain)
@@ -239,8 +259,9 @@ async def test_workflow_end_to_end_with_mocked_activities(temporal_env_with_conv
     calls: dict = {}
 
     @workflows.activity(name="hn-fetch-front-page")
-    async def fake_fetch() -> list[Story]:
+    async def fake_fetch(source: str = "front_page") -> list[Story]:
         calls["fetch"] = True
+        calls["fetch_source"] = source
         return [
             Story(
                 id=1,
@@ -299,6 +320,7 @@ async def test_workflow_end_to_end_with_mocked_activities(temporal_env_with_conv
     assert [s.id for s in result.stories] == [1]
     assert result.subject.startswith("HN Tech Digest -")
     assert calls["fetch"] is True
+    assert calls["fetch_source"] == "latest"  # new default source
     assert calls["select"] == (1, 12)
     assert calls["render"]["to"] == "me@example.com"
     assert calls["render"]["voice_id"] == "voice_478"

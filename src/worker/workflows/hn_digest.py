@@ -26,8 +26,19 @@ DEFAULT_STORY_COUNT = 12
 FRONT_PAGE_SIZE = 30
 MAX_SCRIPT_WORDS = 320
 
-HN_FRONT_PAGE_URL = f"https://hn.algolia.com/api/v1/search?tags=front_page&hitsPerPage={FRONT_PAGE_SIZE}"
+HN_SOURCES = {
+    "front_page": f"https://hn.algolia.com/api/v1/search?tags=front_page&hitsPerPage={FRONT_PAGE_SIZE}",
+    "latest": f"https://hn.algolia.com/api/v1/search_by_date?tags=story&hitsPerPage={FRONT_PAGE_SIZE}",
+    "best": f"https://hn.algolia.com/api/v1/search?tags=story&hitsPerPage={FRONT_PAGE_SIZE}",
+}
 HN_ITEM_URL = "https://news.ycombinator.com/item?id={object_id}"
+
+
+def hn_source_url(source: str) -> str:
+    try:
+        return HN_SOURCES[source]
+    except KeyError:
+        raise ValueError(f"unknown HN source {source!r}; choose one of {sorted(HN_SOURCES)}") from None
 
 NON_NEWS_DOMAINS = {
     "youtube.com",
@@ -56,6 +67,7 @@ class HNDigestInput(pydantic.BaseModel):
     to: str = DEFAULT_RECIPIENT
     story_count: int = DEFAULT_STORY_COUNT
     voice_id: str = DEFAULT_VOICE_ID
+    source: str = "latest"  # one of: "latest" (newest stories), "front_page", "best"
 
 
 class Story(pydantic.BaseModel):
@@ -137,11 +149,16 @@ def parse_front_page(payload: dict[str, Any]) -> list[Story]:
 BLOCKED_DOMAINS = NON_NEWS_DOMAINS | PERSONAL_BLOG_DOMAINS
 
 
+NON_NEWS_TITLE_PREFIXES = ("Ask HN:", "Tell HN:", "Poll:")
+
+
 def filter_candidates(stories: list[Story]) -> list[Story]:
     kept: list[Story] = []
     for story in stories:
         domain = story.domain or ""
         if any(domain == d or domain.endswith("." + d) for d in BLOCKED_DOMAINS):
+            continue
+        if story.title.startswith(NON_NEWS_TITLE_PREFIXES):
             continue
         kept.append(story)
     return kept
@@ -484,8 +501,8 @@ async def gmail_send(payload: dict[str, Any], gmail: ToolCallClient) -> str:
 
 
 @workflows.activity(name="hn-fetch-front-page", start_to_close_timeout=timedelta(seconds=60))
-async def fetch_front_page() -> list[Story]:
-    payload = await hn_get_json(HN_FRONT_PAGE_URL)
+async def fetch_front_page(source: str = "front_page") -> list[Story]:
+    payload = await hn_get_json(hn_source_url(source))
     return parse_front_page(payload)
 
 
@@ -540,7 +557,7 @@ async def render_audio_and_email(
     name="hn-tech-digest",
     workflow_display_name="HN Tech Digest",
     workflow_description=(
-        "One-shot digest: reads the Hacker News front page, selects the top tech-industry stories, "
+        "One-shot digest: reads the latest Hacker News stories (or front page/best via the `source` input), selects the top tech-industry stories, "
         "summarizes them, renders a 1-2 minute Voxtral TTS audio briefing plus an animated HTML "
         "news-style video page synced to the narration, and emails the digest with the MP3 and HTML "
         "attached to your Gmail inbox. Runs on behalf of the triggering user."
@@ -552,7 +569,7 @@ class HNDigestWorkflow:
     @workflows.workflow.entrypoint
     async def run(self, input: HNDigestInput) -> DigestOutput:
         date_str = workflows.workflow.now().strftime("%Y-%m-%d")
-        stories = await fetch_front_page()
+        stories = await fetch_front_page(input.source)
         selected = await select_tech_stories(stories, input.story_count)
         digest = await build_digest(selected, date_str)
         sent = await render_audio_and_email(input.to, digest, selected, input.voice_id, date_str)

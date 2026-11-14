@@ -18,11 +18,13 @@ trigger a run manually (one-shot) from the Mistral Console ("Start workflow") or
 curl -X POST https://api.mistral.ai/v1/workflows/hn-tech-digest/execute \
   -H "Authorization: Bearer $MISTRAL_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"input": {"to": "you@gmail.com", "story_count": 12, "voice_id": "voice_478"}}'
+  -d '{"input": {"to": "you@gmail.com", "story_count": 12, "voice_id": "voice_478", "source": "latest"}}'
 ```
 
 All input fields are optional; defaults: `to` = your connected Gmail address,
-`story_count` = 12, `voice_id` = `voice_478` (Sheila, en-US).
+`story_count` = 12, `voice_id` = `voice_478` (Sheila, en-US), `source` = `latest`
+(newest Hacker News stories; also `front_page` or `best`). Each run also emails an
+animated HTML news-video page (`hn-tech-digest-<date>.html`) alongside the MP3.
 
 ## Layout
 
